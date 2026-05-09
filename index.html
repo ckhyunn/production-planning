@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>총괄생산계획 최적화</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --white: #ffffff;
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --border: #e8eaed;
+    --border-strong: #d0d4db;
+    --text: #111318;
+    --text-sub: #4a5263;
+    --text-muted: #9aa0ad;
+    --accent: #2563eb;
+    --accent-light: #eff4ff;
+    --accent-hover: #1d4ed8;
+    --green: #16a34a;
+    --green-light: #f0fdf4;
+    --orange: #ea580c;
+    --orange-light: #fff7ed;
+    --red: #dc2626;
+    --red-light: #fef2f2;
+    --yellow: #d97706;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.07), 0 2px 6px rgba(0,0,0,0.04);
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Pretendard', -apple-system, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ── 헤더 ── */
+  .header {
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .header-logo {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .header-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+
+  .header-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-left: 8px;
+    font-family: 'DM Mono', monospace;
+    font-weight: 400;
+  }
+
+  .header-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    background: var(--accent-light);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.5px;
+  }
+
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  /* ── 레이아웃 ── */
+  .layout {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    min-height: calc(100vh - 60px);
+  }
+
+  /* ── 사이드바 ── */
+  .sidebar {
+    background: var(--white);
+    border-right: 1px solid var(--border);
+    padding: 24px 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .section {
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section:last-of-type {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* 모델 토글 */
+  .model-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    background: var(--bg);
+    padding: 4px;
+    border-radius: 10px;
+  }
+
+  .model-btn {
+    padding: 8px;
+    border-radius: 7px;
+    border: none;
+    background: transparent;
+    color: var(--text-sub);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'Pretendard', sans-serif;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+
+  .model-btn.active {
+    background: var(--white);
+    color: var(--accent);
+    box-shadow: var(--shadow-sm);
+    font-weight: 600;
+  }
+
+  /* 수요 그리드 */
+  .demand-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .demand-cell { display: flex; flex-direction: column; gap: 4px; }
+  .demand-cell label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-sub);
+  }
+
+  input[type="number"], select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    padding: 7px 10px;
+    font-size: 13px;
+    font-family: 'DM Mono', monospace;
+    width: 100%;
+    transition: all 0.15s;
+    outline: none;
+  }
+
+  input[type="number"]:focus, select:focus {
+    border-color: var(--accent);
+    background: var(--white);
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
+  }
+
+  .month-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .month-btn {
+    flex: 1;
+    padding: 6px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-sub);
+    font-size: 12px;
+    font-weight: 500;
+    font-family: 'Pretendard', sans-serif;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .month-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-light);
+  }
+
+  /* 파라미터 그리드 */
+  .param-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .param-item { display: flex; flex-direction: column; gap: 4px; }
+  .param-item label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-sub);
+  }
+
+  /* 실행 버튼 */
+  .run-btn {
+    width: 100%;
+    padding: 13px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Pretendard', sans-serif;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: -0.2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 20px;
+  }
+
+  .run-btn:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,235,0.3); }
+  .run-btn:active { transform: translateY(0); }
+  .run-btn:disabled {
+    background: var(--border-strong);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .run-btn .spinner {
+    display: none;
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  .run-btn.loading .btn-text { display: none; }
+  .run-btn.loading .spinner { display: block; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── 메인 ── */
+  .main {
+    padding: 28px 32px;
+    overflow-y: auto;
+  }
+
+  /* 빈 상태 */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 65vh;
+    gap: 14px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  .empty-icon-wrap {
+    width: 80px; height: 80px;
+    background: var(--bg);
+    border-radius: 20px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px;
+    border: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+
+  .empty-state h2 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-sub);
+  }
+  .empty-state p { font-size: 13px; color: var(--text-muted); }
+
+  /* KPI 행 */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .kpi-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    animation: fadeUp 0.35s ease both;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .kpi-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    margin-bottom: 10px;
+  }
+
+  .kpi-card.blue .kpi-icon { background: var(--accent-light); }
+  .kpi-card.orange .kpi-icon { background: var(--orange-light); }
+  .kpi-card.green .kpi-icon { background: var(--green-light); }
+  .kpi-card.red .kpi-icon { background: var(--red-light); }
+
+  .kpi-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .kpi-value {
+    font-size: 22px;
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: -1px;
+    line-height: 1;
+  }
+
+  .kpi-card.blue .kpi-value { color: var(--accent); }
+  .kpi-card.orange .kpi-value { color: var(--orange); }
+  .kpi-card.green .kpi-value { color: var(--green); }
+  .kpi-card.red .kpi-value { color: var(--red); }
+
+  .kpi-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 5px;
+  }
+
+  /* 차트 그리드 */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+
+  .chart-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    animation: fadeUp 0.4s ease both;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .chart-card.wide { grid-column: span 2; }
+
+  .chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .chart-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .chart-badge {
+    font-size: 10px;
+    font-weight: 500;
+    font-family: 'DM Mono', monospace;
+    color: var(--text-muted);
+    background: var(--bg);
+    padding: 3px 8px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+  }
+
+  /* 비용 바 */
+  .cost-bar-wrap { margin-top: 4px; }
+  .cost-bar-item { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
+  .cost-bar-label { font-size: 11px; color: var(--text-sub); width: 100px; flex-shrink: 0; font-weight: 500; }
+  .cost-bar-track { flex: 1; height: 5px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+  .cost-bar-fill { height: 100%; border-radius: 3px; transition: width 0.9s cubic-bezier(0.4,0,0.2,1); }
+  .cost-bar-val { font-size: 11px; color: var(--text-sub); width: 64px; text-align: right; font-family: 'DM Mono', monospace; }
+
+  /* 테이블 카드 */
+  .table-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 14px;
+    animation: fadeUp 0.5s ease both;
+    box-shadow: var(--shadow-sm);
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+  }
+
+  th {
+    text-align: right;
+    padding: 8px 12px;
+    color: var(--text-muted);
+    font-size: 10px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    background: var(--bg);
+  }
+  th:first-child { text-align: left; border-radius: 6px 0 0 6px; }
+  th:last-child { border-radius: 0 6px 6px 0; }
+
+  td {
+    padding: 9px 12px;
+    text-align: right;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    font-size: 12px;
+  }
+  td:first-child { text-align: left; color: var(--text-sub); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg); }
+
+  .td-highlight { color: var(--accent) !important; font-weight: 600; }
+  .td-warn { color: var(--orange) !important; }
+  .td-danger { color: var(--red) !important; }
+
+  /* AI 분석 코멘트 */
+  .ai-comment-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-sm);
+    animation: fadeUp 0.3s ease both;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .ai-comment-icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    background: var(--accent-light);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .ai-comment-body { flex: 1; }
+  .ai-comment-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .ai-comment-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .ai-comment-badge {
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    color: var(--text-muted);
+    background: var(--bg);
+    padding: 2px 7px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+  }
+  .ai-comment-text {
+    font-size: 13px;
+    color: var(--text-sub);
+    line-height: 1.75;
+  }
+  .ai-comment-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+  .ai-spinner {
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    flex-shrink: 0;
+  }
+
+  /* 에러 */
+  .error-box {
+    background: var(--red-light);
+    border: 1px solid #fca5a5;
+    border-radius: var(--radius-sm);
+    padding: 14px 18px;
+    color: var(--red);
+    font-size: 13px;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <div class="header-logo">📊</div>
+    <span class="header-title">총괄생산계획 최적화</span>
+    <span class="header-subtitle">APP · Pyomo + GLPK</span>
+  </div>
+  <div class="header-badge">
+    <div class="dot"></div>
+    SMART MANUFACTURING
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ── 좌측 입력 패널 ── -->
+  <aside class="sidebar">
+
+    <!-- 모델 선택 -->
+    <div class="section">
+      <div class="section-label">최적화 모델</div>
+      <div class="model-toggle">
+        <button class="model-btn" onclick="setModel('LP')" id="btn-LP">LP (연속)</button>
+        <button class="model-btn active" onclick="setModel('IP')" id="btn-IP">IP (정수)</button>
+      </div>
+    </div>
+
+    <!-- 수요 입력 -->
+    <div class="section">
+      <div class="section-label">월별 수요 예측 (개)</div>
+      <div class="demand-grid" id="demand-grid"></div>
+      <div class="month-actions">
+        <button class="month-btn" onclick="addMonth()">+ 월 추가</button>
+        <button class="month-btn" onclick="removeMonth()">− 월 제거</button>
+      </div>
+    </div>
+
+    <!-- 비용 파라미터 -->
+    <div class="section">
+      <div class="section-label">비용 파라미터 (천원)</div>
+      <div class="param-grid">
+        <div class="param-item">
+          <label>재료비/개</label>
+          <input type="number" id="material_cost" value="10" min="0" step="1"/>
+        </div>
+        <div class="param-item">
+          <label>재고유지비/개/월</label>
+          <input type="number" id="holding_cost" value="2" min="0" step="0.5"/>
+        </div>
+        <div class="param-item">
+          <label>부재고비용/개/월</label>
+          <input type="number" id="backlog_cost" value="5" min="0" step="1"/>
+        </div>
+        <div class="param-item">
+          <label>고용비용/인</label>
+          <input type="number" id="hire_cost" value="300" min="0" step="10"/>
+        </div>
+        <div class="param-item">
+          <label>해고비용/인</label>
+          <input type="number" id="fire_cost" value="500" min="0" step="10"/>
+        </div>
+        <div class="param-item">
+          <label>하청비용/개</label>
+          <input type="number" id="outsource_cost" value="30" min="0" step="1"/>
+        </div>
+        <div class="param-item">
+          <label>정규임금/시간</label>
+          <input type="number" id="regular_wage" value="4" min="0" step="0.5"/>
+        </div>
+        <div class="param-item">
+          <label>초과임금/시간</label>
+          <input type="number" id="overtime_wage" value="6" min="0" step="0.5"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- 생산 파라미터 -->
+    <div class="section">
+      <div class="section-label">생산 파라미터</div>
+      <div class="param-grid">
+        <div class="param-item">
+          <label>초기 재고 (개)</label>
+          <input type="number" id="initial_inventory" value="1000" min="0"/>
+        </div>
+        <div class="param-item">
+          <label>최종 재고 (개)</label>
+          <input type="number" id="final_inventory" value="500" min="0"/>
+        </div>
+        <div class="param-item">
+          <label>초기 근로자 (명)</label>
+          <input type="number" id="initial_workers" value="80" min="1"/>
+        </div>
+        <div class="param-item">
+          <label>표준작업시간 (h/개)</label>
+          <input type="number" id="std_time" value="4" min="0.1" step="0.1"/>
+        </div>
+        <div class="param-item">
+          <label>작업일수 (일/월)</label>
+          <input type="number" id="work_days" value="20" min="1"/>
+        </div>
+        <div class="param-item">
+          <label>작업시간 (h/일)</label>
+          <input type="number" id="work_hours" value="8" min="1"/>
+        </div>
+        <div class="param-item" style="grid-column:span 2;">
+          <label>최대초과시간 (h/인/월)</label>
+          <input type="number" id="max_overtime" value="10" min="0"/>
+        </div>
+      </div>
+    </div>
+
+    <button class="run-btn" onclick="runOptimization()" id="run-btn">
+      <span class="btn-text">⚡ 최적화 실행</span>
+      <div class="spinner"></div>
+    </button>
+
+  </aside>
+
+  <!-- ── 우측 결과 ── -->
+  <main class="main" id="main-content">
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon-wrap">🏭</div>
+      <h2>총괄생산계획을 수립해보세요</h2>
+      <p>좌측에서 수요와 파라미터를 설정하고<br>최적화를 실행하세요</p>
+    </div>
+    <div id="result-area" style="display:none;"></div>
+  </main>
+
+</div>
+
+<script>
+let modelType = 'IP';
+let months = 6;
+let defaultDemand = [1600, 3000, 3200, 3800, 2200, 2200];
+let charts = {};
+
+function init() { renderDemandGrid(); }
+
+function setModel(type) {
+  modelType = type;
+  document.getElementById('btn-LP').classList.toggle('active', type === 'LP');
+  document.getElementById('btn-IP').classList.toggle('active', type === 'IP');
+}
+
+function renderDemandGrid() {
+  const grid = document.getElementById('demand-grid');
+  grid.innerHTML = '';
+  for (let i = 0; i < months; i++) {
+    grid.innerHTML += `
+      <div class="demand-cell">
+        <label>${i+1}월</label>
+        <input type="number" id="demand-${i}" value="${defaultDemand[i] ?? 2000}" min="0" step="100"/>
+      </div>`;
+  }
+}
+
+function addMonth() {
+  if (months >= 12) return;
+  const last = parseFloat(document.getElementById(`demand-${months-1}`)?.value || 2000);
+  defaultDemand[months] = last;
+  months++;
+  renderDemandGrid();
+}
+
+function removeMonth() {
+  if (months <= 1) return;
+  months--;
+  renderDemandGrid();
+}
+
+function getDemand() {
+  return Array.from({length: months}, (_, i) =>
+    parseFloat(document.getElementById(`demand-${i}`).value) || 0
+  );
+}
+
+function getParam(id) {
+  return parseFloat(document.getElementById(id).value) || 0;
+}
+
+async function runOptimization() {
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.classList.add('loading');
+
+  const payload = {
+    demand: getDemand(),
+    material_cost: getParam('material_cost'),
+    holding_cost: getParam('holding_cost'),
+    backlog_cost: getParam('backlog_cost'),
+    hire_cost: getParam('hire_cost'),
+    fire_cost: getParam('fire_cost'),
+    outsource_cost: getParam('outsource_cost'),
+    regular_wage: getParam('regular_wage'),
+    overtime_wage: getParam('overtime_wage'),
+    initial_inventory: getParam('initial_inventory'),
+    final_inventory: getParam('final_inventory'),
+    initial_workers: getParam('initial_workers'),
+    std_time: getParam('std_time'),
+    work_days: getParam('work_days'),
+    work_hours: getParam('work_hours'),
+    max_overtime: getParam('max_overtime'),
+    model_type: modelType,
+  };
+
+  try {
+    const res = await fetch('/api/optimize', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) showError(data.detail || '최적화 실패');
+    else renderResults(data);
+  } catch (e) {
+    showError('서버 연결 실패: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('loading');
+  }
+}
+
+function showError(msg) {
+  document.getElementById('empty-state').style.display = 'none';
+  const area = document.getElementById('result-area');
+  area.style.display = 'block';
+  area.innerHTML = `<div class="error-box">⚠ ${msg}</div>`;
+}
+
+function renderResults(d) {
+  document.getElementById('empty-state').style.display = 'none';
+  const area = document.getElementById('result-area');
+  area.style.display = 'block';
+
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+
+  const TH = d.periods;
+  const labels = Array.from({length: TH}, (_, i) => `${i+1}월`);
+  const T = Array.from({length: TH}, (_, i) => i + 1);
+
+  const W = T.map(t => d.W[t]);
+  const H = T.map(t => d.H[t]);
+  const L = T.map(t => d.L[t]);
+  const P = T.map(t => d.P[t]);
+  const I = T.map(t => d.I[t]);
+  const S = T.map(t => d.S[t]);
+  const C = T.map(t => d.C[t]);
+  const O = T.map(t => d.O[t]);
+  const demand = d.demand;
+
+  const totalHire = H.reduce((a,b)=>a+b,0);
+  const totalFire = L.reduce((a,b)=>a+b,0);
+  const totalShortage = S.reduce((a,b)=>a+b,0);
+  const totalOutsource = C.reduce((a,b)=>a+b,0);
+
+  area.innerHTML = `
+    <div class="ai-comment-card" id="ai-comment-card">
+      <div class="ai-comment-icon">🤖</div>
+      <div class="ai-comment-body">
+        <div class="ai-comment-header">
+          <span class="ai-comment-title">AI 계획 분석</span>
+          <span class="ai-comment-badge">Claude 분석 중...</span>
+        </div>
+        <div class="ai-comment-loading">
+          <div class="ai-spinner"></div>
+          최적화 결과를 분석하고 있습니다...
+        </div>
+      </div>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi-card blue">
+        <div class="kpi-icon">💰</div>
+        <div class="kpi-label">총 최소비용</div>
+        <div class="kpi-value">${(d.total_cost/1000).toFixed(0)}<span style="font-size:13px;font-weight:500;margin-left:2px;">M</span></div>
+        <div class="kpi-sub">${d.model_type} 모델 · 천원</div>
+      </div>
+      <div class="kpi-card orange">
+        <div class="kpi-icon">👥</div>
+        <div class="kpi-label">고용 / 해고</div>
+        <div class="kpi-value">${Math.round(totalHire)} / ${Math.round(totalFire)}</div>
+        <div class="kpi-sub">명 · 기간 합계</div>
+      </div>
+      <div class="kpi-card green">
+        <div class="kpi-icon">📦</div>
+        <div class="kpi-label">최종 재고</div>
+        <div class="kpi-value">${Math.round(I[TH-1]).toLocaleString()}</div>
+        <div class="kpi-sub">개 · 기간 말</div>
+      </div>
+      <div class="kpi-card red">
+        <div class="kpi-icon">⚠️</div>
+        <div class="kpi-label">누적 부족재고</div>
+        <div class="kpi-value">${Math.round(totalShortage).toLocaleString()}</div>
+        <div class="kpi-sub">개 · 외주 ${Math.round(totalOutsource)}개</div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card wide">
+        <div class="chart-header">
+          <div class="chart-title">수요 vs 생산량</div>
+          <span class="chart-badge">PRODUCTION</span>
+        </div>
+        <div style="position:relative;height:200px;">
+          <canvas id="chart-prod"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">작업자 / 고용 / 해고</div>
+          <span class="chart-badge">WORKFORCE</span>
+        </div>
+        <div style="position:relative;height:180px;">
+          <canvas id="chart-worker"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">재고 / 부족재고 추이</div>
+          <span class="chart-badge">INVENTORY</span>
+        </div>
+        <div style="position:relative;height:180px;">
+          <canvas id="chart-inventory"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">비용 구성 분석</div>
+          <span class="chart-badge">COST</span>
+        </div>
+        <div id="cost-bars" class="cost-bar-wrap"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">비용 비율</div>
+          <span class="chart-badge">RATIO</span>
+        </div>
+        <div style="position:relative;height:200px;">
+          <canvas id="chart-cost-pie"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="chart-header">
+        <div class="chart-title">월별 결정변수 상세</div>
+        <span class="chart-badge">DECISION VARIABLES</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>항목</th>
+            ${labels.map(l=>`<th>${l}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>수요 D</td>${demand.map(v=>`<td>${fmt(v)}</td>`).join('')}</tr>
+          <tr><td>생산량 P</td>${P.map(v=>`<td class="td-highlight">${fmt(v)}</td>`).join('')}</tr>
+          <tr><td>작업자 W</td>${W.map(v=>`<td>${fmt(v)}</td>`).join('')}</tr>
+          <tr><td>고용 H</td>${H.map(v=>`<td class="${v>0?'td-warn':''}">${fmt(v)}</td>`).join('')}</tr>
+          <tr><td>해고 L</td>${L.map(v=>`<td class="${v>0?'td-danger':''}">${fmt(v)}</td>`).join('')}</tr>
+          <tr><td>재고 I</td>${I.map(v=>`<td>${fmt(v)}</td>`).join('')}</tr>
+          <tr><td>부족재고 S</td>${S.map(v=>`<td class="${v>0?'td-danger':''}">${fmt(v)}</td>`).join('')}</tr>
+          <tr><td>외주 C</td>${C.map(v=>`<td class="${v>0?'td-warn':''}">${fmt(v)}</td>`).join('')}</tr>
+          <tr><td>초과시간 O</td>${O.map(v=>`<td>${fmt(v)}</td>`).join('')}</tr>
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  const fontColor = '#9aa0ad';
+  const gridColor = '#f0f1f3';
+  const baseOpts = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: '#4a5263', font: { family: 'DM Mono', size: 11 }, boxWidth: 10, padding: 12 } }
+    },
+    scales: {
+      x: { grid: { color: gridColor }, ticks: { color: fontColor, font: { family: 'DM Mono', size: 10 } }, border: { color: gridColor } },
+      y: { grid: { color: gridColor }, ticks: { color: fontColor, font: { family: 'DM Mono', size: 10 } }, border: { color: gridColor } }
+    }
+  };
+
+  charts.prod = new Chart(document.getElementById('chart-prod'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: '수요', data: demand, backgroundColor: 'rgba(234,88,12,0.15)', borderColor: '#ea580c', borderWidth: 1.5, borderRadius: 4 },
+        { label: '생산', data: P, backgroundColor: 'rgba(37,99,235,0.15)', borderColor: '#2563eb', borderWidth: 1.5, borderRadius: 4 },
+        { label: '외주', data: C, backgroundColor: 'rgba(22,163,74,0.15)', borderColor: '#16a34a', borderWidth: 1.5, borderRadius: 4 },
+      ]
+    },
+    options: baseOpts
+  });
+
+  charts.worker = new Chart(document.getElementById('chart-worker'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: '작업자', data: W, type: 'line', borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.06)', tension: 0.4, yAxisID: 'y', pointRadius: 3, pointBackgroundColor: '#2563eb' },
+        { label: '고용', data: H, backgroundColor: 'rgba(22,163,74,0.6)', borderRadius: 4, yAxisID: 'y2' },
+        { label: '해고', data: L, backgroundColor: 'rgba(220,38,38,0.6)', borderRadius: 4, yAxisID: 'y2' },
+      ]
+    },
+    options: {
+      ...baseOpts,
+      scales: {
+        x: baseOpts.scales.x,
+        y: { ...baseOpts.scales.y, position: 'left' },
+        y2: { ...baseOpts.scales.y, position: 'right', grid: { drawOnChartArea: false } }
+      }
+    }
+  });
+
+  charts.inv = new Chart(document.getElementById('chart-inventory'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: '재고', data: I, borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.07)', fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#2563eb' },
+        { label: '부족재고', data: S, borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.07)', fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#dc2626' }
+      ]
+    },
+    options: baseOpts
+  });
+
+  const cb = d.cost_breakdown;
+  const maxCost = Math.max(...Object.values(cb));
+  const colors = ['#2563eb','#ea580c','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#64748b'];
+  document.getElementById('cost-bars').innerHTML = Object.entries(cb).map(([k,v], i) => `
+    <div class="cost-bar-item">
+      <div class="cost-bar-label">${k}</div>
+      <div class="cost-bar-track">
+        <div class="cost-bar-fill" style="width:${(v/maxCost*100).toFixed(1)}%; background:${colors[i]};"></div>
+      </div>
+      <div class="cost-bar-val">${(v/1000).toFixed(0)}M</div>
+    </div>
+  `).join('');
+
+  charts.pie = new Chart(document.getElementById('chart-cost-pie'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(cb),
+      datasets: [{
+        data: Object.values(cb),
+        backgroundColor: colors.map(c => c + '22'),
+        borderColor: colors,
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: { color: '#4a5263', font: { family: 'DM Mono', size: 10 }, boxWidth: 10, padding: 8 }
+        }
+      }
+    }
+  });
+
+  // AI 분석 코멘트 생성
+  generateAIComment(d, W, H, L, P, I, S, C, O, demand);
+}
+
+function generateAIComment(d, W, H, L, P, I, S, C, O, demand) {
+  const TH = d.periods;
+  const labels = Array.from({length: TH}, (_, i) => `${i+1}월`);
+
+  const totalHire   = H.reduce((a,b)=>a+b,0);
+  const totalFire   = L.reduce((a,b)=>a+b,0);
+  const totalShortage  = S.reduce((a,b)=>a+b,0);
+  const totalOutsource = C.reduce((a,b)=>a+b,0);
+  const totalOvertime  = O.reduce((a,b)=>a+b,0);
+
+  const shortageMonths  = labels.filter((_,i) => S[i] > 0);
+  const outsourceMonths = labels.filter((_,i) => C[i] > 0);
+  const hireMonths      = labels.filter((_,i) => H[i] > 0);
+  const fireMonths      = labels.filter((_,i) => L[i] > 0);
+
+  // 생산 평준화 여부 판단
+  const prodValues = P.filter(v => v > 0);
+  const prodMax = Math.max(...prodValues);
+  const prodMin = Math.min(...prodValues);
+  const isLevelProduction = (prodMax - prodMin) / prodMax < 0.05;
+
+  // 비용 구성에서 가장 큰 항목
+  const cb = d.cost_breakdown;
+  const topCost = Object.entries(cb).sort((a,b) => b[1]-a[1])[0];
+
+  // 문장 조합
+  const sentences = [];
+
+  // 1) 생산 전략
+  if (isLevelProduction) {
+    sentences.push(`현재 계획은 매월 약 ${Math.round(prodValues[0]).toLocaleString()}개로 생산량을 일정하게 유지하는 <strong>생산 평준화 전략</strong>을 채택하고 있습니다.`);
+  } else {
+    sentences.push(`현재 계획은 수요 변동에 맞춰 생산량을 조절하는 <strong>수요 추종 전략</strong>을 채택하고 있습니다.`);
+  }
+
+  // 2) 인력 변동
+  if (totalHire > 0 && totalFire > 0) {
+    sentences.push(`${hireMonths.join(', ')}에 총 ${Math.round(totalHire)}명 고용, ${fireMonths.join(', ')}에 총 ${Math.round(totalFire)}명 해고가 발생하여 인력 변동 비용이 증가했습니다.`);
+  } else if (totalFire > 0) {
+    sentences.push(`${fireMonths.join(', ')}에 총 ${Math.round(totalFire)}명을 해고하여 인력을 축소했으며, 해고 비용이 발생했습니다.`);
+  } else if (totalHire > 0) {
+    sentences.push(`${hireMonths.join(', ')}에 총 ${Math.round(totalHire)}명을 신규 고용하여 생산 능력을 확대했습니다.`);
+  } else {
+    sentences.push(`전 기간 동안 인력 변동 없이 안정적인 인력 운용이 이루어졌습니다.`);
+  }
+
+  // 3) 부족재고 / 외주
+  if (shortageMonths.length > 0 && outsourceMonths.length > 0) {
+    sentences.push(`<strong>${shortageMonths.join(', ')}에 수요 초과로 부족재고 ${Math.round(totalShortage).toLocaleString()}개가 발생</strong>했으며, 외주 ${Math.round(totalOutsource).toLocaleString()}개로 일부를 보완했습니다.`);
+  } else if (shortageMonths.length > 0) {
+    sentences.push(`<strong>${shortageMonths.join(', ')}에 부족재고 ${Math.round(totalShortage).toLocaleString()}개가 발생</strong>하여 서비스 수준이 저하될 위험이 있습니다.`);
+  } else if (outsourceMonths.length > 0) {
+    sentences.push(`부족재고 없이 운영되었으나, ${outsourceMonths.join(', ')}에 외주 ${Math.round(totalOutsource).toLocaleString()}개를 활용하여 추가 비용이 발생했습니다.`);
+  } else {
+    sentences.push(`전 기간 부족재고와 외주 없이 자체 생산만으로 수요를 충족하는 <strong>이상적인 계획</strong>이 수립되었습니다. ✅`);
+  }
+
+  // 4) 초과근무
+  if (totalOvertime > 0) {
+    sentences.push(`초과근무가 활용되어 생산 유연성을 높였습니다.`);
+  }
+
+  // 5) 비용 분석 및 개선 방향
+  const costRatio = (topCost[1] / d.total_cost * 100).toFixed(0);
+  sentences.push(`총 비용 ${(d.total_cost/1000).toFixed(0)}백만원 중 <strong>${topCost[0]}(${costRatio}%)</strong>이 가장 큰 비중을 차지합니다. ${
+    shortageMonths.length > 0
+      ? '수요 피크 월의 초과근무 한도를 높이거나 사전 재고 확보를 통해 부족재고를 줄이면 서비스 수준을 개선할 수 있습니다.'
+      : totalFire > 0
+      ? '해고 비용 절감을 위해 점진적 인력 감축이나 초과근무 활용을 검토해볼 수 있습니다.'
+      : '현재 계획은 전반적으로 안정적입니다.'
+  }`);
+
+  const comment = sentences.join(' ');
+
+  const card = document.getElementById('ai-comment-card');
+  if (card) {
+    card.querySelector('.ai-comment-badge').textContent = '계획 분석 완료';
+    card.querySelector('.ai-comment-loading').outerHTML = `<div class="ai-comment-text">${comment}</div>`;
+  }
+}
+
+function fmt(v) {
+  if (v === null || v === undefined) return '-';
+  const n = parseFloat(v);
+  return Number.isInteger(n) ? n.toLocaleString() : n.toFixed(1);
+}
+
+init();
+</script>
+</body>
+</html>
